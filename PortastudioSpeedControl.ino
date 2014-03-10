@@ -50,6 +50,7 @@ void setup() {
   
   //command the default output
   writeOutputVoltage(analogOutPin,default_output_V);
+  prev_value = default_output_V;  //initialize the moothing state
   
   //get the current potentiometer value
   initSensorValue_V = convertInputCountsToVolts(analogRead(analogInPin));
@@ -63,12 +64,30 @@ void loop() {
   
   switch (operating_state) {
     case (STATE_STILL_INITIAL_OUTPUT):
-      if (abs(sensorValue_V - initSensorValue_V) > THRESHOLD_VOLTS) {
-        operating_state = STATE_NORMAL;  //switch to the normal mode of operation
+      //we're in the initial state.  Waiting for user to turn the knob past the
+      //setting that is equivalent to the default output voltage.  As a result
+      //the system will startup at a good speed and then requires the user
+      //to turn the knob such that the speed will deviate smoothly from the
+      //default speed
+      if (initSensorValue_V < default_output_V) {
+        //the initial knob position was lower than the default output.  So,
+        //look to see if the knob has crossed to a value higher than the default setting.
+        if (sensorValue_V > default_output_V) operating_state = STATE_NORMAL;  //switch to the normal mode of operation
+      } else {
+        //Or, here, the initial sensor value was above the default output.  So,
+        //look to see if the knob has crossed to a value lower than the default setting.
+        if (sensorValue_V < default_output_V) operating_state = STATE_NORMAL;  //switch to the normal mode of operation
       }
+
       break;
     case (STATE_NORMAL):
+      //smooth the sensor value in time
+      sensorValue_V = (1.0-learn_fac)*prev_value + learn_fac*sensorValue_V;
+      prev_value = sensorValue_V;
+      
+      //output the smoothed sensor value
       writeOutputVoltage(analogOutPin,sensorValue_V);
+      break;
   }
   
   delay(10); //keep the sample rate at a reasonable speed;
